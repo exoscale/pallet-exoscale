@@ -16,8 +16,8 @@
 
 (def web-node
   (api/node-spec
-   :image    {:image-id "74ac7e89-d1c1-41bf-a70d-d134c6de7369"}
-   :hardware {:hardware-id "7c12e6df-6096-43e6-b9e4-3cb7b4e3f4c8"}))
+   :image    {:image-id "7d36b6bc-ec34-4e76-beac-7d6e956b6527"}
+   :hardware {:hardware-id "71004023-bb72-4a97-b1e9-bc66dfce9470"}))
 
 (def web-group
   (api/group-spec :web
