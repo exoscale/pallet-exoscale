@@ -44,7 +44,7 @@
   (compute/nodes @service))
 
 (defn -main [& [arg]]
-  (let [nodecount (if args (Integer/parseInt arg) 1)]
+  (let [nodecount (if arg (Integer/parseInt arg) 1)]
     (printf "starting a cluster with %s nodes" nodecount)
     (cluster nodecount)
     (System/exit 0)))
