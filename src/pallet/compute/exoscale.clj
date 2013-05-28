@@ -431,9 +431,12 @@
 
 ;; service factory implementation for exoscale
 (defmethod implementation/service :exoscale
-  [provider {:keys [api-key api-secret endpoint tag-provider environment] :as options}]
-  (debug "using options: " options)
-  (let [api (apply cs/http-client (apply concat (dissoc options :tag-provider)))
+  [provider {:keys [api-key api-secret endpoint tag-provider environment]
+             :or {endpoint "https://api.exoscale.ch/compute"}
+             :as options}]
+  (debug "using options: " (assoc options :endpoint endpoint))
+  (let [options (-> options (assoc :endpoint endpoint) (dissoc :tag-provider))
+        api (apply cs/http-client (apply concat options))
         tag-provider (or tag-provider (ExoscaleNodeTag. api))
         poller (cs/node-poller api 5000)]
     (ExoscaleService.
