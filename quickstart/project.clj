@@ -3,7 +3,7 @@
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [com.palletops/pallet "0.8.0-beta.10"]
                  [ch.qos.logback/logback-classic "1.0.0"]
-                 [ch.exoscale/pallet-exoscale "0.1.2"]]
+                 [ch.exoscale/pallet-exoscale "0.1.4"]]
   :main quickstart.repl
   :profiles {:dev
              {:dependencies

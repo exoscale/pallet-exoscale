@@ -189,7 +189,7 @@
   (let [key-pairs (-> (cs/request api :listSSHKeyPairs
                                   {:name key-name})
                       :listsshkeypairsresponse
-                      :keypair)]
+                      :sshkeypair)]
     (debugf "ensure-keypair existing %s: %s" key-name key-pairs)
     (when (zero? (count key-pairs))
       (cs/request api :registerSSHKeyPair
@@ -341,7 +341,6 @@
                          (ensure-keypair api key-name user)
                          key-name))
           security-group (-> group-spec :node-spec :config :security-group)
-          _              (debug "got initial security-group: " security-group)
           security-group (if (seq security-group)
                            security-group
                            (let [security-group (security-group-name
