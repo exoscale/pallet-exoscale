@@ -1,4 +1,4 @@
-(defproject ch.exoscale/pallet-exoscale "0.1.2"
+(defproject ch.exoscale/pallet-exoscale "0.1.3"
   :description "A provider for using Pallet with exoscale"
   :url "https://github.com/exoscale/pallet-exoscale"
   :license {:name "All rights reserved"}
