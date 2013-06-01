@@ -27,8 +27,6 @@
     </encoder>
   </appender>
 
-  <!--
-  -->
   <logger name="pallet" level="DEBUG">
     <appender-ref ref="PALLETFILE" />
   </logger>
@@ -36,5 +34,4 @@
   <root level="WARN">
     <appender-ref ref="MAINFILE" />
   </root>
-
 </configuration>
