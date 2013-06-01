@@ -16,8 +16,10 @@
 
 (def web-node
   (api/node-spec
-   :image    {:image-id "7d36b6bc-ec34-4e76-beac-7d6e956b6527"}
-   :hardware {:hardware-id "71004023-bb72-4a97-b1e9-bc66dfce9470"}))
+   :image    {:os-family :ubuntu
+              :os-version-matches "12.04"}
+   :hardware {:min-cores 1
+              :min-ram   512}))
 
 (def web-group
   (api/group-spec :web
@@ -27,11 +29,9 @@
 
 (def service (delay (configure/compute-service "exoscale")))
 
-(def ^:dynamic *service* nil)
-
 (defn cluster
   ([n]
-     (api/converge {web-group n} :compute (or *service* @service)))
+     (api/converge {web-group n} :compute @service))
   ([]
      (cluster 1)))
 
