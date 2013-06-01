@@ -1,4 +1,4 @@
-(defproject ch.exoscale/pallet-exoscale "0.1.1"
+(defproject ch.exoscale/pallet-exoscale "0.1.2"
   :description "A provider for using Pallet with exoscale, based on clostack."
   :url "https://github.com/exoscale/pallet-exoscale"
   :license {:name "All rights reserved"}

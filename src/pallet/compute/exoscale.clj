@@ -17,6 +17,30 @@
    pallet.environment))
 
 
+(def os-parsers
+  (array-map
+   #"Ubuntu ([0-9]+\.[0-9]+)"
+   (fn [match]
+     (when match
+       {:os-family :ubuntu
+        :os-version (nth match 1)}))
+   #"CentOS ([0-9]+\.[0-9]+)"
+   (fn [match]
+     (when match
+       {:os-family :centos
+        :os-version (nth match 1)}))))
+
+(defn parse-image
+  "Best guess os family and version from the image name"
+  [description]
+  (first
+   (filter identity
+           (map
+            (fn [[re f]]
+              (when-let [match (re-find re description)]
+                (f match)))
+            os-parsers))))
+
 ;;; Meta
 (defn supported-providers []
   ["exoscale"])
@@ -65,8 +89,13 @@
 (defn node-image-value
   "Return the value from the image-tag on a node's instance-info"
   [info]
-  (when-let [state (get-tag info pallet-image-tag)]
-    (read-string state)))
+  (let [tag-state (when-let [state (get-tag info pallet-image-tag)]
+                    (read-string state))]
+    (if-not (empty? (remove (or tag-state {}) [:os-family :os-version]))
+      (merge (parse-image (:templatedisplaytext info))
+             (hash-map :image-id (:templateid info))
+             tag-state)
+      tag-state)))
 
 (defn tag-instances [api ids & tags]
   (debugf "tag-instances %s %s" ids tags)
@@ -103,9 +132,9 @@
   (packager [this]
     (debugf "exoscale node info: %s" info)
     (case (keyword (pallet.node/os-family this))
-      :ubuntu :aptitude
+      :ubuntu :apt
       :centos :rpm
-      :aptitude))
+      :apt))
 
   pallet.node/NodeImage
   (image-user [this]
@@ -142,48 +171,6 @@
   "Predicate for testing if a node is bootstrapped."
   [node]
   (:bs (node-state-value (.info node))))
-
-;;; ### OS parsing
-(def ^{:doc "Map of non-canonical os-versions to canonical versions"}
-  os-versions
-  {"centos" {"6" "6.0"}
-   "ubuntu" {"precise" "12.04" "quantum" "12.10" "raring" "13.04"}})
-
-(def ^{:doc "Map of non-canonical os-families to canonical versions"}
-  os-families
-  {})
-
-(defn default-parser-result
-  [match]
-  (when-let [[_ family version] match]
-    (let [family (string/lower-case family)
-          versions (os-versions family {})]
-      {:os-family (keyword (os-families family family))
-       :os-version (versions version version)})))
-
-(def os-parsers
-  (array-map
-   #"Ubuntu ([0-9]+\.[0-9]+)"
-   (fn [match]
-     (when match
-       {:os-family :ubuntu
-        :os-version (nth match 2)}))
-   #"CentOS ([0-9]+\.[0-9]+)"
-   (fn [match]
-     (when match
-       {:os-family :centos
-        :os-version (nth match 2)}))))
-
-(defn parse-image
-  "Best guess os family and version from the image name"
-  [description]
-  (first
-   (filter identity
-           (map
-            (fn [[re f]]
-              (when-let [match (re-find re description)]
-                (f match)))
-            os-parsers))))
 
 ;;; implementation detail names
 (defn security-group-name
@@ -227,7 +214,10 @@
                        :endport "22"
                        :protocol "TCP"}))))))
 
-(defn- get-tags [api node]
+(defn- get-tags
+  "Fetch tags through the API. A bit redundant but
+   more failsafe"
+  [api node]
   (let [tags (cs/request
               api
               :listTags
@@ -265,6 +255,68 @@
     (debugf "node-taggable? %s" (node/id node))
     true))
 
+(defn sorted-templates
+  [api]
+  (->> (-> (cs/request api :listTemplates {:templatefilter "featured"})
+           (:listtemplatesresponse)
+           (:template))
+       (group-by :name)))
+
+(defn get-hardware
+  "Either yield the given hardware specification or try to
+   find the best match given supplied constraints."
+  [api {:keys [hardware-id min-cores min-ram]
+        :or {min-cores 0 min-ram 0}
+        :as hardware-spec}]
+  (let [so-filter   (fn [{:keys [cpunumber memory]}]
+                      (and (>= cpunumber min-cores)
+                           (>= memory min-ram)))
+        first-match (delay (-> (cs/request api :listServiceOfferings {})
+                               (:listserviceofferingsresponse)
+                               (:serviceoffering)
+                               (->> (filter so-filter) (sort-by :memory))
+                               (first)))]
+    (when-not (or hardware-id @first-match)
+      (throw (ex-info "could not find a matching instance type"
+                      {:reason        :badmatch
+                       :hardware-spec hardware-spec
+                       :hardware-id   hardware-id})))
+    (if hardware-id
+      hardware-spec
+      (assoc hardware-spec :hardware-id (:id @first-match)))))
+
+(defn get-template
+  [api {:keys [min-disk]
+        :or {min-disk 0}}
+   {:keys [image-id os-family os-version-matches]
+    :or {os-family          :ubuntu
+         os-version-matches "12.04"}
+    :as image-spec}]
+  (let [tpl-filter (fn [{:keys [size displaytext]}]
+                     (let [parsed (parse-image displaytext)]
+                       (and (>= (/ size (* 1024 1024 1024)) min-disk)
+                            (= (:os-family parsed) os-family)
+                            (= (:os-version parsed) os-version-matches))))
+        first-match (delay (-> (cs/request api :listTemplates
+                                           {:templatefilter "featured"})
+                               (:listtemplatesresponse)
+                               (:template)
+                               (->> (filter tpl-filter) (sort-by :size))
+                               (first)))]
+    (when-not (or image-id @first-match)
+      (throw (ex-info "could not find a matching template"
+                      {:reason        :badmatch
+                       :image-spec    image-spec
+                       :image-id      image-id})))    
+    (if image-id
+      (assoc image-spec :os-family os-family)
+      (let [{:keys [os-family os-version]}
+            (parse-image (:displaytext @first-match))]
+        (assoc image-spec
+          :os-family  os-family
+          :os-version os-version
+          :image-id   (:id @first-match))))))
+
 (deftype ExoscaleService
     [api image-info environment instance-poller poller-future
      tag-provider]
@@ -276,55 +328,9 @@
         (debug "instances: " instances)
         (map make-node (-> instances :listvirtualmachinesresponse :virtualmachine)))))
 
-  (ensure-os-family [_ {:keys [image group-name] :or {image {}} :as group-spec}]
-    (when-not (:image-id image)
-      (throw
-       (ex-info
-        (format "Group-spec %s :image does not specify an :image-id" group-name)
-        {:group-spec group-spec
-         :reason :no-image-id})))
-    (if-let [missing-keys (seq (remove image [:os-family :os-version :user]))]
-      (let [response (-> (cs/request
-                          api
-                          :listTemplates
-                          {:templatefilter "featured"
-                           :id (:image-id image)})
-                         :listtemplatesresponse
-                         :template)]
-        (debugf "ensure-os-family images %s" response)
-        (if-let [images (:images response)]
-          (let [image (first images)]
-            (let [image-details (parse-image (:name image))
-                  group-spec (update-in
-                              group-spec [:image]
-                              (fn [image] (merge image-details image)))]
-              (if (every? (:image group-spec) missing-keys)
-                (do
-                  (logging/warnf
-                   (str
-                    "group-spec %s :image does not specify the keys %s. "
-                    "Inferred %s from the AMI %s with name \"%s\".")
-                   group-name (vec missing-keys)
-                   (zipmap missing-keys (map (:image group-spec) missing-keys))
-                   (:image-id image) (:name image))
-                  group-spec)
-                (let [missing (vec (remove (:image group-spec) missing-keys))]
-                  (throw
-                   (ex-info
-                    (format
-                     (str "group-spec %s :image does not specify the keys %s. "
-                          "Could not infer %s from the AMI %s with name %s.")
-                     group-name (vec missing-keys) missing (:name image))
-                    {:group-spec group-spec
-                     :image-name (:name image)
-                     :image-id (:image-id image)
-                     :missing-keys missing}))))))
-          (throw
-           (ex-info
-            (format "Image %s not found" (:image-id image))
-            {:image-id (:image-id image)
-             :reason :image-not-found}))))
-      group-spec))
+  (ensure-os-family [_ group-spec]
+    ;; no need for 0.7 compat right now
+    group-spec)
 
   (run-nodes [service group-spec node-count user init-script options]
     ;; need a keypair
@@ -349,13 +355,13 @@
                             :zone
                             first
                             :id))
-          hardware-id (or (-> group-spec :hardware :hardware-id)
-                          (-> (cs/request api :listServiceOfferings {:zoneid zone})
-                              :listserviceofferingsresponse
-                              :serviceoffering
-                              first
-                              :id))
-          image-id  (-> group-spec :image :image-id)]
+          hardware-spec (get-hardware api (:hardware group-spec))
+          image-spec    (get-template api hardware-spec (:image group-spec))
+          group-spec    (assoc group-spec
+                          :hardware hardware-spec
+                          :image image-spec)
+          hardware-id   (-> group-spec :hardware :hardware-id)
+          image-id      (-> group-spec :image :image-id)]
       (debugf "run-instances %s nodes" node-count)
       (when-let [jobs (cs/run-instances
                        api
