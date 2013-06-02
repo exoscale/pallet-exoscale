@@ -160,7 +160,8 @@
             (doall)
             (vec)))
       (schedule [this jobid]
-        (swap! jobmap assoc jobid (promise)))
+        (when jobid
+          (swap! jobmap assoc jobid (promise))))
       (waitfor [this jobid]
         (when-let [jobpromise (get @jobmap jobid)]
           (deref jobpromise))))))

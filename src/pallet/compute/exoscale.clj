@@ -196,7 +196,7 @@
                   {:name key-name
                    :publickey (slurp (:public-key-path user))}))))
 
-(defn ensure-security-group [api security-group-name]
+(defn ensure-security-group [api security-group-name inbound-ports]
   (let [sgs (-> (cs/request api :listSecurityGroups
                             {:securitygroupname security-group-name})
                 :listsecuritygroupsresponse
@@ -207,12 +207,13 @@
                            {:name security-group-name})
             id (-> r :createsecuritygroupresponse :securitygroup :id)]
         (when id
-          (cs/request api :authorizeSecurityGroupIngress
-                      {:cidrlist ["0.0.0.0/0"]
-                       :securitygroupid id
-                       :startport "22"
-                       :endport "22"
-                       :protocol "TCP"}))))))
+          (doseq [port inbound-ports]
+            (cs/request api :authorizeSecurityGroupIngress
+                        {:cidrlist ["0.0.0.0/0"]
+                         :securitygroupid id
+                         :startport (str port)
+                         :endport (str port)
+                         :protocol "TCP"})))))))
 
 (defn- get-tags
   "Fetch tags through the API. A bit redundant but
@@ -340,13 +341,15 @@
                        (let [key-name (user-keypair-name user)]
                          (ensure-keypair api key-name user)
                          key-name))
+          inbound-ports (or (-> group-spec :network :inbound-ports)
+                            [22])
           security-group (-> group-spec :node-spec :config :security-group)
           security-group (if (seq security-group)
                            security-group
                            (let [security-group (security-group-name
                                                  group-spec)]
                              (ensure-security-group
-                              api security-group)
+                              api security-group inbound-ports)
                              security-group))
           zone      (or (-> group-spec :hardware :zone)
                         (-> (cs/request api :listZones {})
