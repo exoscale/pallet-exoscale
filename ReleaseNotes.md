@@ -1,3 +1,7 @@
+# 0.1.5
+
+- Add support for inbound-ports in group-specs
+
 # 0.1.4
 
 - Avoid trying to recreate an SSH keypair on each machine creation
