@@ -9,6 +9,7 @@
 
 (crate/defplan web-plan
   []
+  (actions/package-manager :update)
   (actions/package "nginx")
   (actions/remote-file "/usr/share/nginx/www/index.html"
                        :content "Welcome to Pallet!")
@@ -16,6 +17,7 @@
 
 (def web-node
   (api/node-spec
+   :network  {:inbound-ports [22 80]}
    :image    {:os-family :ubuntu
               :os-version-matches "12.04"}
    :hardware {:min-cores 1
