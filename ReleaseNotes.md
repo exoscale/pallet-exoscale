@@ -1,3 +1,7 @@
+# 0.1.4
+
+- Avoid trying to recreate an SSH keypair on each machine creation
+
 # 0.1.3
 
 - Cleanup release.
