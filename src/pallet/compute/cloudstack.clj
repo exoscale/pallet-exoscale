@@ -144,7 +144,6 @@
     (reify NodePoller
       (poll [this]
         (loop []
-          (debugf "node-poller tick")
           (doseq [[jobid jobpromise]  @jobmap
                   :let [res (request api :queryAsyncJobResult {:jobid jobid})]]
             (when (= 1 (-> res :queryasyncjobresultresponse :jobstatus))

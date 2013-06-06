@@ -21,6 +21,7 @@
    :image    {:os-family :ubuntu
               :os-version-matches "12.04"}
    :hardware {:min-cores 1
+              :min-disk  50
               :min-ram   512}))
 
 (def web-group
