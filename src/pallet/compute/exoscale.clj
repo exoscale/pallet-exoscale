@@ -224,7 +224,7 @@
               :listTags
               {:resourceid (node/id node)})]
     (debugf "get-tags tags %s" tags)
-    (into {} (map (juxt :key :value) (:tags tags)))))
+    (into {} (map (juxt :key :value) (-> tags :listtagsresponse :tag)))))
 
 (deftype ExoscaleNodeTag [api]
   pallet.compute.NodeTagReader
