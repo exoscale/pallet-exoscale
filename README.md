@@ -9,7 +9,7 @@ The exoscale provider uses the `:exoscale` key.
 Add the following to your dependencies:
 
 ```clj
-[ch.exoscale/pallet-exoscale "0.1.7"]
+[ch.exoscale/pallet-exoscale "0.1.8"]
 ```
 
 ## Caveats
