@@ -4,7 +4,7 @@
             [clojure.data.codec.base64 :as base64]
             [clojure.data.json         :as json]
             [http.async.client         :as http]
-            [clojure.tools.logging     :refer [debugf]])
+            [clojure.tools.logging     :refer [debugf info warn]])
   (:import java.net.URLEncoder
            javax.crypto.spec.SecretKeySpec
            javax.crypto.Mac
@@ -78,11 +78,12 @@
            (cond (and (sequential? v) (-> v first map?))
                  (for [[i submap] (map-indexed vector v)]
                    (for [[subk subv] submap
+                         :when (seq subv)
                          :let [subk (str/lower-case (name subk))
                                subv (name subv)]]
                      (ArgPair. (format "%s[%d].%s" k i subk subv) subv)))
                  (sequential? v)
-                 (ArgPair. (name k) (str/join "," (map name v)))
+                 (ArgPair. (name k) (str/join "," (map name (remove nil? v))))
                  :else
                  (ArgPair. (name k) v)))
          (flatten)
