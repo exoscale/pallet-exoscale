@@ -153,7 +153,7 @@
           (Thread/sleep interval)
           (recur)))
       (deliverall [this v]
-        (doseq [[jobid jobpromise] jobmap]
+        (doseq [[jobid jobpromise] @jobmap]
           (deliver jobpromise nil)))
       (waitall [this jobids]
         (-> (map (partial waitfor this) jobids)
